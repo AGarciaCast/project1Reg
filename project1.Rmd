@@ -3,6 +3,15 @@ title: "Project 1"
 output: html_notebook
 ---
 
+```{r}
+library(car)# avPlots
+library(MASS)
+library(ggplot2)
+library(plotly)  
+library(dplyr)
+```
+
+
 # All models
 Load data
 
@@ -11,8 +20,12 @@ bodyF <- read.csv("./bodyfatmen.csv",
                header = TRUE)
 
 View(bodyF)
+n <- nrow(bodyF)
+p <- ncol(bodyF) # k+1
 
 ```
+
+
 
 Create full model
 ```{r}
@@ -20,3 +33,185 @@ bodyF.model <- lm(density ~ ., data = bodyF)
 summary(bodyF.model)
 ```
 We see that the model have a lot of confidence with abdomen and wrist but no so much with height, chest, hip, knee, ankle and biceps
+
+## Residuals analysis
+
+```{r}
+# Normal probability plot of residuals
+plot(bodyF.model, which=2)
+```
+Seems pretty good, so we have a relatively strong reason to beleive the normality assumtion of the residual. However we see a bit of heavy tails. The points 39, 203 and 220 could be outliers since they do not follow the normality hypothesis (but only 203 and 220 seem more severe).
+
+
+```{r}
+# Residuals vs. fitted values
+plot(bodyF.model, which=c(1,3))
+plot(studres(bodyF.model), xlab="Fitted values", ylab="Studentized residual")
+plot(rstudent(bodyF.model), xlab="Fitted values", ylab="R-Student residual")
+```
+Semms very good, we do not see any aparent shape, which corresponds to a uncorrelated fitted values with the residuals. We can see in the standarized residuals vs fitted values, that the points 39, 203, and 220 have a standarized residual higher than the variance, which could indicate us that they are outliers. Funnel?
+
+
+```{r}
+### Horizontal band, so satisfactory distribution
+#par(mfrow = c(3, 3))
+# Residuals vs. regressor variables
+plot(bodyF$age, bodyF.model$residuals)
+plot(bodyF$weight, bodyF.model$residuals)
+plot(bodyF$height, bodyF.model$residuals)
+plot(bodyF$neck, bodyF.model$residuals)
+plot(bodyF$chest, bodyF.model$residuals)
+plot(bodyF$abdomen, bodyF.model$residuals)
+plot(bodyF$hip, bodyF.model$residuals)
+plot(bodyF$thigh, bodyF.model$residuals)
+plot(bodyF$knee, bodyF.model$residuals)
+plot(bodyF$ankle, bodyF.model$residuals)
+plot(bodyF$biceps, bodyF.model$residuals)
+plot(bodyF$forearm, bodyF.model$residuals)
+plot(bodyF$wrist, bodyF.model$residuals)
+```
+We see that all the plots have a rectangular shape, indicating that the uncorrelation between the regresors and the residuals.
+
+```{r}
+# Partial residual plots
+avPlots(bodyF.model)
+```
+These plots, with the previous ones, shows us that it might be necesray to transform our variables since all the plots follow a line.
+Also we see that that the slope of the height, chest and knee is zero, while weight, neck, abdomen, hip, forearm (due to outliers) and wrist have greater slope. Thus, this indicates that we should priorize the variables with higher slope.
+
+
+```{r}
+# PRESS statistics
+
+pr <- resid(bodyF.model)/(1 - lm.influence(bodyF.model)$hat)
+PRESS <- sum(pr^2) 
+SSt <- sum((bodyF$density - mean(bodyF$density))^2)
+R2prediction <- 1 - PRESS/SSt
+print(R2prediction)
+```
+We could expect this model to explain about 70.52% of the variabilityin predicting new observations. Which is not as desirable, but it is not that much of a trade off compared to the R2 0.7451.
+
+
+
+## Leverage and outliers
+
+
+```{r}
+# Define cutoff
+leverage.cutoff <- 2 * p / n  # MPV p. 213
+cooks.cutoff <- qf(0.5, p, n - p, lower.tail = FALSE)  # MPV p. 215
+dfbetas.cutoff <- 2 / sqrt(n)  # MPV p. 218
+dffits.cutoff <- 2 * sqrt(p / n)  # MPV p. 219
+studres.cutoff <- qt(0.05 / 2, n - p, lower.tail = FALSE)  # MPV p. 135
+```
+
+```{r}
+### leverage points
+bodyF.hat <- hatvalues(bodyF.model)
+a <-bodyF.hat[bodyF.hat > leverage.cutoff]
+print(a)
+View(bodyF[names(a),])
+```
+
+
+
+```{r}
+plot(bodyF.model, which=5)
+```
+We can see that none of the points are considered as influentials based on the Cooks distance cutoff. However, we have the points 39 and 83 which are high leverage points and are the closest to being influential.
+Analizing the data we observe that the point 39 corresponts to the heaviest individual (having a 100 pound gap), so that translates to having high leverage. Moreover, as we saw in the stundentized vs fitted plot it had one of the highest residual (no so good of a fit), so that made high more influential than the rest.
+
+
+
+```{r}
+### Cook's distance
+bodyF.cooks <- cooks.distance(bodyF.model)
+bodyF.cooks[bodyF.cooks > cooks.cutoff]
+```
+
+
+
+```{r}
+plot(bodyF.model, which=4)
+```
+This plot confirms our findings of not having a influential point based on Cooks distance, however we see that the point 39 has a much high value compared to the rest.
+
+```{r}
+influence.measures(bodyF.model)
+```
+
+
+
+```{r}
+### DFBETAS
+bodyF.dfbetas <- dfbetas(bodyF.model)
+bodyF.model.extra <- bodyF.model
+bodyF.model.extra$dfbetas0 <-bodyF.dfbetas[, 1]
+bodyF.model.extra$dfbetas1 <-bodyF.dfbetas[, 2]
+bodyF.model.extra$dfbetas2 <-bodyF.dfbetas[, 3]
+bodyF.model.extra$dfbetas3 <-bodyF.dfbetas[, 4]
+bodyF.model.extra$dfbetas4 <-bodyF.dfbetas[, 5]
+bodyF.model.extra$dfbetas5 <-bodyF.dfbetas[, 6]
+bodyF.model.extra$dfbetas6 <-bodyF.dfbetas[, 7]
+bodyF.model.extra$dfbetas7 <-bodyF.dfbetas[, 8]
+bodyF.model.extra$dfbetas8 <-bodyF.dfbetas[, 9]
+bodyF.model.extra$dfbetas9 <-bodyF.dfbetas[, 10]
+bodyF.model.extra$dfbetas10 <-bodyF.dfbetas[, 11]
+bodyF.model.extra$dfbetas11 <-bodyF.dfbetas[, 12]
+bodyF.model.extra$dfbetas12 <-bodyF.dfbetas[, 13]
+```
+
+```{r}
+print("beta_0")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 1]) > dfbetas.cutoff, 1]  # beta_0
+print("beta_1")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 2]) > dfbetas.cutoff, 2]  # beta_1
+print("beta_2")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 3]) > dfbetas.cutoff, 3]  # beta_2
+print("beta_3")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 4]) > dfbetas.cutoff, 4]  # beta_3
+print("beta_4")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 5]) > dfbetas.cutoff, 5]  # beta_4
+print("beta_5")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 6]) > dfbetas.cutoff, 6]  # beta_5
+print("beta_6")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 7]) > dfbetas.cutoff, 7]  # beta_6
+print("beta_7")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 8]) > dfbetas.cutoff, 8]  # beta_7
+print("beta_8")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 9]) > dfbetas.cutoff, 9]  # beta_8
+print("beta_9")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 10]) > dfbetas.cutoff, 10]  # beta_9
+print("beta_10")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 11]) > dfbetas.cutoff, 11]  # beta_10
+print("beta_11")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 12]) > dfbetas.cutoff, 12]  # beta_11
+print("beta_12")
+bodyF.dfbetas[abs(bodyF.dfbetas[, 13]) > dfbetas.cutoff, 13]  # beta_12
+```
+
+
+
+```{r}
+pp <- ggplot(bodyF.model.extra, aes(x=fitted.values, y=dfbetas0)) + 
+    geom_line(data=bodyF.model.extra, aes(x=fitted.values, y=dfbetas.cutoff),col="#C79EC6") +geom_line(data=bodyF.model.extra, aes(x=fitted.values, y=-dfbetas.cutoff),col="#C79EC6")
+plotly:ggplotly(pp, tooltip="text") 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
