@@ -1,0 +1,22 @@
+---
+title: "Project 1"
+output: html_notebook
+---
+
+# All models
+Load data
+
+```{r}
+bodyF <- read.csv("./bodyfatmen.csv",
+               header = TRUE)
+
+View(bodyF)
+
+```
+
+Create full model
+```{r}
+bodyF.model <- lm(density ~ ., data = bodyF)
+summary(bodyF.model)
+```
+We see that the model have a lot of confidence with abdomen and wrist but no so much with height, chest, hip, knee, ankle and biceps
