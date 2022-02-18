@@ -11,6 +11,8 @@ library(ggplot2)
 library(plotly)  
 library(dplyr)
 library(GGally)  # ggpairs
+library(leaps)
+library(olsrr)
 ```
 
 
@@ -226,6 +228,29 @@ We still have some multicolliniarity such as chest, hip and thight, but not as s
 
 # Varaiable selection
 ## All regresors
+```{r}
+bodyF.model.red2 <- regsubsets(density~., data = bodyF.noWeight_noAbs, nvmax = 11)
+```
+
+```{r}
+a<-summary(bodyF.model.red2)
+summary(bodyF.model.red2)
+print("Best Adjusted R2")
+which.max(summary(bodyF.model.red2)$adjr2)
+print("Best Cp")
+which.min(summary(bodyF.model.red2)$cp)
+print("Best BIC")
+which.min(summary(bodyF.model.red2)$bic)
+```
+```{r}
+all_possible_res <- ols_step_all_possible(bodyF.model.red1, metric = c("rsquare", "adjr", "cp", "aic", "sbic", "msep"))
+plot(all_possible_res)
+```
+```{r}
+View(all_possible_res[1816,])
+```
+
+
 ## Forward
 ## Backgard
 ## Best based on Cross validation
