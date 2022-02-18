@@ -5,10 +5,12 @@ output: html_notebook
 
 ```{r}
 library(car)# avPlots
+library(carData)
 library(MASS)
 library(ggplot2)
 library(plotly)  
 library(dplyr)
+library(GGally)  # ggpairs
 ```
 
 
@@ -40,7 +42,7 @@ We see that the model have a lot of confidence with abdomen and wrist but no so 
 # Normal probability plot of residuals
 plot(bodyF.model, which=2)
 ```
-Seems pretty good, so we have a relatively strong reason to beleive the normality assumtion of the residual. However we see a bit of heavy tails. The points 39, 203 and 220 could be outliers since they do not follow the normality hypothesis (but only 203 and 220 seem more severe).
+Seems pretty good, so we have a relatively strong reason to beleive the normality assumtion of the residual. However we see a bit of light tails. The points 39, 203 and 220 could be outliers since they do not follow the normality hypothesis (but only 203 and 220 seem more severe).
 
 
 ```{r}
@@ -49,7 +51,37 @@ plot(bodyF.model, which=c(1,3))
 plot(studres(bodyF.model), xlab="Fitted values", ylab="Studentized residual")
 plot(rstudent(bodyF.model), xlab="Fitted values", ylab="R-Student residual")
 ```
-Semms very good, we do not see any aparent shape, which corresponds to a uncorrelated fitted values with the residuals. We can see in the standarized residuals vs fitted values, that the points 39, 203, and 220 have a standarized residual higher than the variance, which could indicate us that they are outliers. Funnel?
+Semms very good, we do not see any aparent shape, which corresponds to a uncorrelated fitted values with the residuals. We can see in the standarized residuals vs fitted values, that the points 39, 203, and 220 have a standarized residual higher than the variance, which could indicate us that they are outliers.
+
+These plots also indicate us that we might not need to transform our y variable. Nevertheless we can try to find the sugested transformation by the Cox-Box method to further confrirm our hypothesis.
+
+```{r}
+bc <- boxCox(bodyF.model, lambda=seq(-10, 3))
+bc$x[which(bc$y==max(bc$y))]
+```
+We observe that the power which maximixes the maximum likelihood is -4. However, we see that the CI are relatively long and that they also contain 1.
+
+We can try using the transformation of y^-4 and see if it improves the prior plots.
+```{r}
+bodyF.extra <- bodyF
+bodyF.extra$density <- (bodyF$density)^(-4)
+```
+
+```{r}
+bodyF.model.trans <- lm(density ~ ., data = bodyF.extra)
+summary(bodyF.model.trans)
+```
+
+```{r}
+# Normal probability plot of residuals
+plot(bodyF.model.trans, which=2)
+# Residuals vs. fitted values
+plot(bodyF.model.trans, which=c(1,3))
+plot(studres(bodyF.model.trans), xlab="Fitted values", ylab="Studentized residual")
+plot(rstudent(bodyF.model.trans), xlab="Fitted values", ylab="R-Student residual")
+```
+As we can see there is not a considerable improvement, neither in fixing the light tails. In addition to the long CI of the Box-Cox, we consider not necessary to do any transformation to the y varaiable.
+
 
 
 ```{r}
@@ -74,9 +106,9 @@ We see that all the plots have a rectangular shape, indicating that the uncorrel
 
 ```{r}
 # Partial residual plots
-avPlots(bodyF.model)
+avPlots(bodyF.model) # need to press enter in terminal!
 ```
-These plots, with the previous ones, shows us that it might be necesray to transform our variables since all the plots follow a line.
+These plots, with the previous ones, shows us that it might not be necesary to transform our regressors since all the plots follow a line.
 Also we see that that the slope of the height, chest and knee is zero, while weight, neck, abdomen, hip, forearm (due to outliers) and wrist have greater slope. Thus, this indicates that we should priorize the variables with higher slope.
 
 
@@ -89,7 +121,7 @@ SSt <- sum((bodyF$density - mean(bodyF$density))^2)
 R2prediction <- 1 - PRESS/SSt
 print(R2prediction)
 ```
-We could expect this model to explain about 70.52% of the variabilityin predicting new observations. Which is not as desirable, but it is not that much of a trade off compared to the R2 0.7451.
+We could expect this model to explain about 70.52% of the variability in predicting new observations. Which is not as desirable, but it is not that much of a trade off compared to the R2 0.7451.
 
 
 
@@ -124,91 +156,81 @@ Analizing the data we observe that the point 39 corresponts to the heaviest indi
 
 
 ```{r}
-### Cook's distance
-bodyF.cooks <- cooks.distance(bodyF.model)
-bodyF.cooks[bodyF.cooks > cooks.cutoff]
-```
-
-
-
-```{r}
 plot(bodyF.model, which=4)
 ```
 This plot confirms our findings of not having a influential point based on Cooks distance, however we see that the point 39 has a much high value compared to the rest.
 
-```{r}
-influence.measures(bodyF.model)
-```
-
-
 
 ```{r}
-### DFBETAS
-bodyF.dfbetas <- dfbetas(bodyF.model)
-bodyF.model.extra <- bodyF.model
-bodyF.model.extra$dfbetas0 <-bodyF.dfbetas[, 1]
-bodyF.model.extra$dfbetas1 <-bodyF.dfbetas[, 2]
-bodyF.model.extra$dfbetas2 <-bodyF.dfbetas[, 3]
-bodyF.model.extra$dfbetas3 <-bodyF.dfbetas[, 4]
-bodyF.model.extra$dfbetas4 <-bodyF.dfbetas[, 5]
-bodyF.model.extra$dfbetas5 <-bodyF.dfbetas[, 6]
-bodyF.model.extra$dfbetas6 <-bodyF.dfbetas[, 7]
-bodyF.model.extra$dfbetas7 <-bodyF.dfbetas[, 8]
-bodyF.model.extra$dfbetas8 <-bodyF.dfbetas[, 9]
-bodyF.model.extra$dfbetas9 <-bodyF.dfbetas[, 10]
-bodyF.model.extra$dfbetas10 <-bodyF.dfbetas[, 11]
-bodyF.model.extra$dfbetas11 <-bodyF.dfbetas[, 12]
-bodyF.model.extra$dfbetas12 <-bodyF.dfbetas[, 13]
-```
+# DFFITS
+bodyF.model.extra <- data.frame(fitted.values= bodyF.model$fitted.values, dffits= dffits(bodyF.model))
 
-```{r}
-print("beta_0")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 1]) > dfbetas.cutoff, 1]  # beta_0
-print("beta_1")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 2]) > dfbetas.cutoff, 2]  # beta_1
-print("beta_2")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 3]) > dfbetas.cutoff, 3]  # beta_2
-print("beta_3")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 4]) > dfbetas.cutoff, 4]  # beta_3
-print("beta_4")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 5]) > dfbetas.cutoff, 5]  # beta_4
-print("beta_5")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 6]) > dfbetas.cutoff, 6]  # beta_5
-print("beta_6")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 7]) > dfbetas.cutoff, 7]  # beta_6
-print("beta_7")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 8]) > dfbetas.cutoff, 8]  # beta_7
-print("beta_8")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 9]) > dfbetas.cutoff, 9]  # beta_8
-print("beta_9")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 10]) > dfbetas.cutoff, 10]  # beta_9
-print("beta_10")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 11]) > dfbetas.cutoff, 11]  # beta_10
-print("beta_11")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 12]) > dfbetas.cutoff, 12]  # beta_11
-print("beta_12")
-bodyF.dfbetas[abs(bodyF.dfbetas[, 13]) > dfbetas.cutoff, 13]  # beta_12
-```
+bodyF.model.extra[abs(bodyF.model.extra[,"dffits"]) > dffits.cutoff,] 
 
+pp <- ggplot(bodyF.model.extra, aes(x=fitted.values, y=dffits)) + 
+  geom_point() +  geom_line(data=bodyF.model.extra, aes(x=fitted.values, y=dffits.cutoff), col="red", linetype = "dashed") +geom_line(data=bodyF.model.extra, aes(x=fitted.values, y=-dffits.cutoff), col="red", linetype = "dashed")
+ggplotly(pp, tooltip="text")
+```
+When we analyze the dffits we observe that there are multiple pointsthat pass our threshold, which could imply that we should change the standard threshold to a more convenient one for our porpuse. Nevertheless, the only points that are considerably over the threshold are 39 and 83, which we already observed their influence by the Cooks distance.
+
+Now that we know the influence in the fit of the points 39 and 83 we need to analyse the points and consider if they are trully an outlier or we can compare the models generated without them and consider mantaining them.
 
 
 ```{r}
-pp <- ggplot(bodyF.model.extra, aes(x=fitted.values, y=dfbetas0)) + 
-    geom_line(data=bodyF.model.extra, aes(x=fitted.values, y=dfbetas.cutoff),col="#C79EC6") +geom_line(data=bodyF.model.extra, aes(x=fitted.values, y=-dfbetas.cutoff),col="#C79EC6")
-plotly:ggplotly(pp, tooltip="text") 
+bodyF.model.out1 <- lm(density ~ ., data = bodyF[-39,])
+bodyF.model.out2 <- lm(density ~ ., data = bodyF[-83,])
+bodyF.model.out3 <- lm(density ~ ., data = bodyF[c(-39 -83),])
+print("All points")
+summary(bodyF.model)["adj.r.squared"]
+print("Without 39")
+summary(bodyF.model.out1)["adj.r.squared"]
+print("Without 83")
+summary(bodyF.model.out2)["adj.r.squared"]
+print("Without 39 and 83")
+summary(bodyF.model.out3)["adj.r.squared"]
+```
+We see that there is no much diference in the adjusted R2 when we remove the influential points. Therefore, we conclude that we are going to maintain. In addition, we want to mention that their values seem like possible body proportions, so we might have some added interest in mantaining them.
+
+# Multicolliniarity
+
+Since most of our regressors correnspond to dimension of the body, then we already expect to have some correlation between them. Also we expect that the weight will be correlated to some regressors as well.
+
+
+```{r}
+# Correlation matrix 
+ggpairs(data = bodyF[,-1]) # better in terminal
 ```
 
+We can see that the most uncorrelated variable is the age, and then the height. However we have high correlations between the rest body dimensions as we expected.
 
+```{r}
+# Variance inflation factor (VIF)
+# Hard Cutoff is 10, soft cuttof is 5
+vif(bodyF.model) 
+```
+We see that weight, chest (merely), abdomen and hip surpass the cutoff of 10 in the VIF, which indicate us that these variables have a great dependance with the rest. We will iterativelly remove this variables and recalculate the VIFs untill there is no more variables with value greater than 10.
 
+```{r}
+bodyF.noWeight <- bodyF[,-3]
+bodyF.model.red1 <- lm(density ~ ., data = bodyF.noWeight)
+vif(bodyF.model.red1) 
+```
+We observe that we have reduced considerably the multicolliniarity. Now we are going to remove abdomen.
 
+```{r}
+bodyF.noWeight_noAbs <- bodyF[,c(-3, -7)]
+bodyF.model.red1 <- lm(density ~ ., data = bodyF.noWeight_noAbs)
+vif(bodyF.model.red1) 
+```
+We still have some multicolliniarity such as chest, hip and thight, but not as severe as before. Therefore we can procede to variable selection with this reduced data.
 
+# Varaiable selection
+## All regresors
+## Forward
+## Backgard
+## Best based on Cross validation
 
-
-
-
-
-
-
+# Bootstrap assesment of the model
 
 
 
