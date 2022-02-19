@@ -14,6 +14,7 @@ library(GGally)  # ggpairs
 library(leaps)
 library(olsrr)
 library(caret)
+library(glmnet)
 ```
 
 
@@ -246,8 +247,8 @@ View(all_possible_res[best, c("n", "predictors", "rsquare", "adjr", "cp", "aic",
 ```
 
 ```{r}
-bodyF.model.all_red_1 <- lm(density ~ age + height + neck + chest + hip + thigh + forearm + wrist, data=bodyF.noWeight_noAbs)
-bodyF.model.all_red_2 <- lm(density ~ age + chest + thigh + wrist, data=bodyF.noWeight_noAbs)
+bodyF.formula.all_red_1 <- density ~ age + height + neck + chest + hip + thigh + forearm + wrist
+bodyF.formula.all_red_2 <- density ~ age + chest + thigh + wrist
 ```
 
 ### From total model
@@ -268,8 +269,8 @@ View(all_possible_res[best, c("n", "predictors", "rsquare", "adjr", "cp", "aic",
 ```
 
 ```{r}
-bodyF.model.all_1 <- lm(density ~ age + weight + neck + abdomen + hip + thigh + forearm + wrist, data=bodyF)
-bodyF.model.all_2 <- lm(density ~ weight + abdomen + forearm + wrist, data=bodyF)
+bodyF.formula.all_1 <- density ~ age + weight + neck + abdomen + hip + thigh + forearm + wrist
+bodyF.formula.all_2 <- density ~ weight + abdomen + forearm + wrist
 ```
 
 ## Forward
@@ -303,7 +304,7 @@ points(bic_min, fordward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
 ```
 We have a new model for the best BIC:
 ```{r}
-bodyF.model.for_red_1 <- lm(density ~ age + height + chest + hip + thigh + wrist, data=bodyF.noWeight_noAbs)
+bodyF.formula.for_red_1 <-density ~ age + height + chest + hip + thigh + wrist
 ```
 
 
@@ -338,7 +339,7 @@ points(bic_min, fordward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
 ```
 
 ```{r}
-bodyF.model.for_1 <- lm(density ~ age + weight + neck + abdomen + hip + thigh + biceps + forearm + wrist, data=bodyF)
+bodyF.formula.for_1 <- density ~ age + weight + neck + abdomen + hip + thigh + biceps + forearm + wrist
 ```
 We obtain a new model (which was the one that we ommited from the previous method)
 
@@ -404,25 +405,112 @@ points(bic_min, backward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
 ```
 Again, we do not obtain new models. Therefore, we can conclude that we could have just used backward instead of all subsets and gain computation efficiency.
 
+
+## Lasso
+```{r}
+x_var <- data.matrix(bodyF[, -1])
+y_var <- data.matrix(bodyF[, 1])
+
+bodyF.lasso <- cv.glmnet(x_var, y_var, alpha=1, nfolds = 4)
+
+plot(bodyF.lasso)
+bodyF.lasso$lambda.1se  # one standard deviation away from minimizing lambda
+coefs.lasso <- coef(bodyF.lasso)  # coefficients for lambda.1se
+coefs.lasso[rowSums(coefs.lasso) != 0,] 
+```
+
+```{r}
+bodyF.formula.lasso <- density ~ age + height + neck + abdomen + wrist 
+```
+
+
 ## Best based on Cross validation
 We are going to use cross validation to calculate the predicted MSE of all models and choose the best one.
 
 ```{r}
-train.control <- trainControl(method = "cv", number = 5)
+train.control <- trainControl(method = "cv", number = 4)
 ```
 
 ```{r}
-model.formula <- density ~ age + weight + neck + abdomen + hip + thigh + forearm + wrist
-cv <- train(model.formula, data = bodyF, method = "lm", trControl = train.control)
-cv$results$RMSE
+num <- c(0, 0, 0, 0, 0, 0, 0)
+for (i in 1:100){
+  cv <- train(bodyF.formula.all_1, data = bodyF, method = "lm", trControl = train.control)
+  res <- cv$results
+  
+  cv <- train(bodyF.formula.all_2, data = bodyF, method = "lm", trControl = train.control)
+  res <- rbind(res, cv$results)
+  
+  cv <- train(bodyF.formula.all_red_1, data = bodyF.noWeight_noAbs, method = "lm", trControl = train.control)
+  res <- rbind(res, cv$results)
+  
+  cv <- train(bodyF.formula.all_red_2, data = bodyF.noWeight_noAbs, method = "lm", trControl = train.control)
+  res <- rbind(res, cv$results)
+  
+  cv <- train(bodyF.formula.for_1, data = bodyF, method = "lm", trControl = train.control)
+  res <- rbind(res, cv$results)
+  
+  cv <- train(bodyF.formula.for_red_1, data = bodyF.noWeight_noAbs, method = "lm", trControl = train.control)
+  res <- rbind(res, cv$results)
+  
+  cv <- train(bodyF.formula.lasso, data = bodyF, method = "lm", trControl = train.control)
+  res <- rbind(res, cv$results)
+
+  
+  num[which.min(res$RMSE)] <- num[which.min(res$RMSE)] + 1
+  num[which.max(res$Rsquared)] <- num[which.max(res$Rsquared)] + 1
+}
+res
+res[which.max(num), ]
+```
+
+```{r}
+print("Best model formula")
+bodyF.formula.all_1
 ```
 
 
 
 # Bootstrap assesment of the model
 
+```{r}
+bodyF.model.best <- lm(bodyF.formula.all_1, data=bodyF)
+plot(bodyF.model.best)
+summary(bodyF.model.best)
+```
 
 
 
+```{r}
+vif(bodyF.model.best)
+```
 
+## Ridge
+```{r}
+x_var <- data.matrix(bodyF[, c("age", "weight", "neck", "abdomen", "hip", "thigh", "forearm", "wrist")])
+y_var <- data.matrix(bodyF[, 1])
+
+bodyF.ridge <- cv.glmnet(x_var, y_var, alpha=0, nfolds = 4)
+
+plot(bodyF.ridge)
+bodyF.ridge$lambda.1se  # one standard deviation away from minimizing lambda
+coef(bodyF.ridge)
+coef(bodyF.model.best)
+```
+
+
+## Bootstrap coefs
+
+```{r}
+n <- 1000
+bodyF.model.bootstrapresiduals <- Boot(bodyF.model.best, R=n, method="residual") 
+
+
+summary(bodyF.model.bootstrapresiduals)
+
+
+# hist(df00.model2.bootstrapresiduals, legend="separate")
+hist(bodyF.model.bootstrapresiduals, estDensity=FALSE, estNormal = FALSE, ci="none")
+
+Confint(bodyF.model.bootstrapresiduals, level=.95, type="perc")
+```
 
