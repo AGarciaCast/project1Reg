@@ -13,6 +13,7 @@ library(dplyr)
 library(GGally)  # ggpairs
 library(leaps)
 library(olsrr)
+library(caret)
 ```
 
 
@@ -228,32 +229,195 @@ We still have some multicolliniarity such as chest, hip and thight, but not as s
 
 # Varaiable selection
 ## All regresors
-```{r}
-bodyF.model.red2 <- regsubsets(density~., data = bodyF.noWeight_noAbs, nvmax = 11)
-```
+### From reduced model
 
 ```{r}
-a<-summary(bodyF.model.red2)
-summary(bodyF.model.red2)
-print("Best Adjusted R2")
-which.max(summary(bodyF.model.red2)$adjr2)
-print("Best Cp")
-which.min(summary(bodyF.model.red2)$cp)
-print("Best BIC")
-which.min(summary(bodyF.model.red2)$bic)
-```
-```{r}
-all_possible_res <- ols_step_all_possible(bodyF.model.red1, metric = c("rsquare", "adjr", "cp", "aic", "sbic", "msep"))
+all_possible_res <- ols_step_best_subset(bodyF.model.red1, metric = c("rsquare", "adjr", "cp", "aic", "sbc", "msep"))
+View(all_possible_res)
 plot(all_possible_res)
-```
-```{r}
-View(all_possible_res[1816,])
+
 ```
 
+
+```{r}
+# Best
+best <-unique(c(which.max(all_possible_res$adjr), which.min(all_possible_res$cp), which.min(all_possible_res$aic), which.min(all_possible_res$sbc)))
+View(all_possible_res[best, c("n", "predictors", "rsquare", "adjr", "cp", "aic", "sbc", "msep")])
+```
+
+```{r}
+bodyF.model.all_red_1 <- lm(density ~ age + height + neck + chest + hip + thigh + forearm + wrist, data=bodyF.noWeight_noAbs)
+bodyF.model.all_red_2 <- lm(density ~ age + chest + thigh + wrist, data=bodyF.noWeight_noAbs)
+```
+
+### From total model
+
+```{r}
+all_possible_res <- ols_step_best_subset(bodyF.model, metric = c("rsquare", "adjr", "cp", "aic", "sbc", "msep"))
+View(all_possible_res)
+plot(all_possible_res)
+
+```
+
+
+```{r}
+# Best
+which.max(all_possible_res$adjr) # Not worth adding a variable for that increase from 8
+best <-unique(c(which.max(all_possible_res$adjr), which.min(all_possible_res$cp), which.min(all_possible_res$aic), which.min(all_possible_res$sbc)))
+View(all_possible_res[best, c("n", "predictors", "rsquare", "adjr", "cp", "aic", "sbc", "msep")])
+```
+
+```{r}
+bodyF.model.all_1 <- lm(density ~ age + weight + neck + abdomen + hip + thigh + forearm + wrist, data=bodyF)
+bodyF.model.all_2 <- lm(density ~ weight + abdomen + forearm + wrist, data=bodyF)
+```
 
 ## Forward
-## Backgard
+### From reduced model
+
+```{r}
+ford.res <- regsubsets(density~., data = bodyF.noWeight_noAbs, nvmax = 11, method="forward")
+fordward.summary <- summary(ford.res)
+fordward.summary
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(fordward.summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(fordward.summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(fordward.summary$adjr2)
+sprintf("Best adj_r2: %d", adj_r2_max)
+points(adj_r2_max, fordward.summary$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(fordward.summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(fordward.summary$cp) 
+sprintf("Best Cp: %d", cp_min)
+points(cp_min, fordward.summary$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(fordward.summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(fordward.summary$bic)
+sprintf("Best bic: %d", bic_min)
+
+points(bic_min, fordward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
+```
+We have a new model for the best BIC:
+```{r}
+bodyF.model.for_red_1 <- lm(density ~ age + height + chest + hip + thigh + wrist, data=bodyF.noWeight_noAbs)
+```
+
+
+
+### From total model
+
+```{r}
+ford.res <- regsubsets(density~., data = bodyF, nvmax = 13, method="forward")
+fordward.summary <- summary(ford.res)
+fordward.summary
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(fordward.summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(fordward.summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(fordward.summary$adjr2)
+sprintf("Best adj_r2: %d", adj_r2_max)
+points(adj_r2_max, fordward.summary$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(fordward.summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(fordward.summary$cp) 
+sprintf("Best Cp: %d", cp_min)
+points(cp_min, fordward.summary$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(fordward.summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(fordward.summary$bic)
+sprintf("Best bic: %d", bic_min)
+
+points(bic_min, fordward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
+```
+
+```{r}
+bodyF.model.for_1 <- lm(density ~ age + weight + neck + abdomen + hip + thigh + biceps + forearm + wrist, data=bodyF)
+```
+We obtain a new model (which was the one that we ommited from the previous method)
+
+## Backward
+
+### From reduced model
+```{r}
+back.res <- regsubsets(density~., data = bodyF.noWeight_noAbs, nvmax = 13, method="backward")
+backward.summary <- summary(back.res)
+backward.summary
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(backward.summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(backward.summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(backward.summary$adjr2)
+sprintf("Best adj_r2: %d", adj_r2_max)
+points(adj_r2_max, backward.summary$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(backward.summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(backward.summary$cp) 
+sprintf("Best Cp: %d", cp_min)
+points(cp_min, backward.summary$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(backward.summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(backward.summary$bic)
+sprintf("Best bic: %d", bic_min)
+
+points(bic_min, backward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
+```
+We do not obtain new models.
+
+
+### From total model
+
+```{r}
+back.res <- regsubsets(density~., data = bodyF, nvmax = 13, method="backward")
+backward.summary <- summary(back.res)
+backward.summary
+```
+
+```{r}
+par(mfrow = c(2,2))
+plot(backward.summary$rss, xlab = "Number of Variables", ylab = "RSS", type = "l")
+
+plot(backward.summary$adjr2, xlab = "Number of Variables", ylab = "Adjusted RSq", type = "l")
+adj_r2_max = which.max(backward.summary$adjr2)
+sprintf("Best adj_r2: %d", adj_r2_max)
+points(adj_r2_max, backward.summary$adjr2[adj_r2_max], col ="red", cex = 2, pch = 20)
+
+plot(backward.summary$cp, xlab = "Number of Variables", ylab = "Cp", type = "l")
+cp_min = which.min(backward.summary$cp) 
+sprintf("Best Cp: %d", cp_min)
+points(cp_min, backward.summary$cp[cp_min], col = "red", cex = 2, pch = 20)
+
+plot(backward.summary$bic, xlab = "Number of Variables", ylab = "BIC", type = "l")
+bic_min = which.min(backward.summary$bic)
+sprintf("Best bic: %d", bic_min)
+
+points(bic_min, backward.summary$bic[bic_min], col = "red", cex = 2, pch = 20)
+```
+Again, we do not obtain new models. Therefore, we can conclude that we could have just used backward instead of all subsets and gain computation efficiency.
+
 ## Best based on Cross validation
+We are going to use cross validation to calculate the predicted MSE of all models and choose the best one.
+
+```{r}
+train.control <- trainControl(method = "cv", number = 5)
+```
+
+```{r}
+model.formula <- density ~ age + weight + neck + abdomen + hip + thigh + forearm + wrist
+cv <- train(model.formula, data = bodyF, method = "lm", trControl = train.control)
+cv$results$RMSE
+```
+
+
 
 # Bootstrap assesment of the model
 
